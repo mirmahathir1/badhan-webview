@@ -7,6 +7,8 @@ import android.content.pm.ActivityInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.Window;
 import android.view.WindowManager;
@@ -17,13 +19,21 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.Toast;
 
 import androidx.fragment.app.FragmentActivity;
 
 public class MainActivity extends FragmentActivity {
     private WebView mWebView;
+    private static String baseURL="https://badhan-buet.web.app/#";
+    private static String internalRedirectionString = "badhan-buet.web.app";
+    private static String noInternetHTML = "file:///android_asset/landing.html";
 
-    @SuppressLint("MissingInflatedId")
+    private static String getURL(String subdomain) {
+        return baseURL+subdomain;
+    }
+
+    @SuppressLint({"MissingInflatedId", "SetJavaScriptEnabled"})
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -69,11 +79,10 @@ public class MainActivity extends FragmentActivity {
     }
 
     private void loadCorrectUrl() {
-//        mWebView.loadUrl("https://badhan-buet.web.app/#/");
         if (!DetectConnection.checkInternetConnection(this)) {
-            mWebView.loadUrl("file:///android_asset/landing.html");
+            mWebView.loadUrl(noInternetHTML);
         } else {
-            mWebView.loadUrl("https://badhan-buet.web.app/#/"); //change
+            mWebView.loadUrl(getURL("/"));
         }
     }
 
@@ -92,7 +101,7 @@ public class MainActivity extends FragmentActivity {
         public boolean handleUri(final Uri uri) {
             final String host = uri.getHost();
             final String scheme = uri.getScheme();
-            if (host.endsWith("web.app")) { //change the host url to match your website
+            if (host.contains(internalRedirectionString)) {
                 return false;
             } else {
                 final Intent intent = new Intent(Intent.ACTION_VIEW, uri);
@@ -108,11 +117,27 @@ public class MainActivity extends FragmentActivity {
         int currIndex = mWebBackForwardList.getCurrentIndex();
         WebHistoryItem item = mWebBackForwardList.getItemAtIndex(currIndex - 1);
 
-        if (currIndex > 0 && !item.getUrl().equals("file:///android_asset/landing.html")) {
+        if (currIndex > 0 && !item.getUrl().equals(noInternetHTML)) {
             mWebView.goBack();
         } else {
-            moveTaskToBack(true);
+            if (doubleBackToExitPressedOnce) {
+                super.onBackPressed();
+                return;
+            }
+
+            this.doubleBackToExitPressedOnce = true;
+            Toast.makeText(this, "Please click BACK again to exit", Toast.LENGTH_SHORT).show();
+
+            new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+
+                @Override
+                public void run() {
+                    doubleBackToExitPressedOnce=false;
+                }
+            }, 2000);
         }
     }
+
+    boolean doubleBackToExitPressedOnce = false;
 
 }
