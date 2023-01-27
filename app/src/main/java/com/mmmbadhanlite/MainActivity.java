@@ -3,15 +3,12 @@ package com.mmmbadhanlite;
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.content.Intent;
-import android.content.pm.ActivityInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.Log;
-import android.view.Window;
-import android.view.WindowManager;
+import android.view.View;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebBackForwardList;
 import android.webkit.WebHistoryItem;
@@ -25,11 +22,12 @@ import androidx.fragment.app.FragmentActivity;
 
 public class MainActivity extends FragmentActivity {
     private WebView mWebView;
-    private static String baseURL="https://badhan-buet.web.app/#";
-    private static String internalRedirectionString = "badhan-buet.web.app";
-    private static String noInternetHTML = "file:///android_asset/landing.html";
+    private static final String baseURL=BuildConfig.DEBUG?"https://badhan-buet-test.netlify.app/#":"https://badhan-buet.web.app/#";
+    private static final String internalRedirectionString = BuildConfig.DEBUG?"badhan-buet-test.netlify.app":"badhan-buet.web.app";
 
-    private static String getURL(String subdomain) {
+    private static final String noInternetHTML = "file:///android_asset/landing.html";
+
+    private static String appendBase(String subdomain) {
         return baseURL+subdomain;
     }
 
@@ -39,23 +37,22 @@ public class MainActivity extends FragmentActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-//      These lines makes the status bar transparent and the website will take up the whole length of the display, Work for Android versions post-KitKat; uncomment if needed
-//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-//            Window w = getWindow(); // in Activity's onCreate() for instance
-//            w.setFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
-//        }
-
         mWebView = (WebView) findViewById(R.id.webview);
+
         WebSettings webSettings = mWebView.getSettings();
         webSettings.setJavaScriptEnabled(true);
-
-        mWebView.getSettings().setUseWideViewPort(true);
-        mWebView.getSettings().setLoadWithOverviewMode(true);
-        mWebView.getSettings().setDomStorageEnabled(true);
+        webSettings.setUseWideViewPort(true);
+        webSettings.setLoadWithOverviewMode(true);
+        webSettings.setDomStorageEnabled(true);
+        webSettings.setCacheMode(WebSettings.LOAD_CACHE_ELSE_NETWORK);
+        webSettings.setLayoutAlgorithm(WebSettings.LayoutAlgorithm.NARROW_COLUMNS);
+        webSettings.setRenderPriority(WebSettings.RenderPriority.HIGH);
+        webSettings.setEnableSmoothTransition(true);
         WebViewClient webViewClient = new MyWebViewClient();
-        mWebView.setWebViewClient(webViewClient);
 
-        mWebView.getSettings().setUserAgentString("Mozilla/5.0 (Linux; U;` Android 2.0; en-us; Droid Build/ESD20) AppleWebKit/530.17 (KHTML, like Gecko) Version/4.0 Mobile Safari/530.17");
+        mWebView.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
+        mWebView.setWebViewClient(webViewClient);
+        webSettings.setUserAgentString("Mozilla/5.0 (Linux; U;` Android 2.0; en-us; Droid Build/ESD20) AppleWebKit/530.17 (KHTML, like Gecko) Version/4.0 Mobile Safari/530.17");
         loadCorrectUrl();
 
         mWebView.addJavascriptInterface(new Object()
@@ -72,17 +69,13 @@ public class MainActivity extends FragmentActivity {
                 });
             }
         }, "browser");
-
-//        if (getResources().getBoolean(R.bool.portrait_only)){
-//            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
-//        }
     }
 
     private void loadCorrectUrl() {
         if (!DetectConnection.checkInternetConnection(this)) {
             mWebView.loadUrl(noInternetHTML);
         } else {
-            mWebView.loadUrl(getURL("/"));
+            mWebView.loadUrl(appendBase("/"));
         }
     }
 
@@ -92,7 +85,6 @@ public class MainActivity extends FragmentActivity {
             return handleUri(uri);
         }
 
-        @TargetApi(Build.VERSION_CODES.N)
         public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
             final Uri uri = request.getUrl();
             return handleUri(uri);
@@ -111,33 +103,37 @@ public class MainActivity extends FragmentActivity {
         }
     }
 
-    @Override
-    public void onBackPressed() {
-        WebBackForwardList mWebBackForwardList = mWebView.copyBackForwardList();
-        int currIndex = mWebBackForwardList.getCurrentIndex();
-        WebHistoryItem item = mWebBackForwardList.getItemAtIndex(currIndex - 1);
-
-        if (currIndex > 0 && !item.getUrl().equals(noInternetHTML)) {
-            mWebView.goBack();
-        } else {
-            if (doubleBackToExitPressedOnce) {
-                super.onBackPressed();
-                return;
-            }
-
-            this.doubleBackToExitPressedOnce = true;
-            Toast.makeText(this, "Please click BACK again to exit", Toast.LENGTH_SHORT).show();
-
-            new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
-
-                @Override
-                public void run() {
-                    doubleBackToExitPressedOnce=false;
-                }
-            }, 2000);
-        }
-    }
 
     boolean doubleBackToExitPressedOnce = false;
 
+    @Override
+    public void onBackPressed() {
+        WebBackForwardList mWebBackForwardList = mWebView.copyBackForwardList();
+        // int currIndex = mWebBackForwardList.getCurrentIndex();
+        // WebHistoryItem item = mWebBackForwardList.getItemAtIndex(currIndex - 1);
+        WebHistoryItem currentItem = mWebBackForwardList.getCurrentItem();
+
+        if(currentItem.getUrl().equals(noInternetHTML)){
+            super.onBackPressed();
+            return;
+        }
+
+        boolean isPageExitable = currentItem.getUrl().equals(appendBase("/")) || currentItem.getUrl().equals(appendBase("/home"));
+        if(!isPageExitable) {
+            mWebView.goBack();
+            return;
+        }
+        if (doubleBackToExitPressedOnce) {
+            super.onBackPressed();
+            return;
+        }
+        this.doubleBackToExitPressedOnce = true;
+        Toast.makeText(this, "Please click BACK again to exit", Toast.LENGTH_SHORT).show();
+        new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                doubleBackToExitPressedOnce=false;
+            }
+            }, 2000);
+    }
 }
